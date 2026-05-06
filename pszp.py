@@ -93,7 +93,7 @@ def binFilters(epochs):
           filterband_file_list.append(epoch[2])
 
     if len(filterband_file_list) > 0:
-      mjdbin = round(np.nanmean(filterband_mjds_list),3)
+      mjdbin = round(np.nanmean(filterband_mjds_list), 5)
       filebin = {filterband:filterband_file_list}
       binned_filtered_epochs[mjdbin] = filebin
 
