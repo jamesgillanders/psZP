@@ -158,7 +158,7 @@ def calSkycellOffsets(epochs_skycell_objects, refstars):
           for star in refstars[f]:
             # Perform offset check if skycell object is within 0.1 arcsec of catalog reference star
             match_offset_deg = ((star[0] - object['PSF.RA'])**2 + (star[1] - object['PSF.DEC'])**2)**0.5
-            if (match_offset_deg*3600 <= 0.1):
+            if (match_offset_deg*3600 <= 0.26):
               object['CAL.MAG_TRUE'] = star[2]
               object['CAL.MAG_OFFSET'] = object['PSF.CAL_PSF_MAG'] - star[2]
               calibrated_objects_list.append(object)
