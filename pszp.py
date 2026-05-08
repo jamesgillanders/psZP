@@ -15,10 +15,14 @@ from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from alive_progress import alive_bar
 
+from astroquery.vizier import Vizier
+
 plt.rcParams['font.family']='Times New Roman'
 plt.rcParams['figure.figsize']=8,6
 plt.rcParams['figure.autolayout']=True
 plt.rcParams['mathtext.fontset']='dejavuserif' 
+
+
 
 def PS1catalog(ra,dec,path):
     
@@ -75,6 +79,57 @@ def PS1catalog(ra,dec,path):
 
     else:
         sys.exit('Field not in PS1 DR2! Exiting.\n')
+
+
+
+def ATLASRefCatcatalog(ra, dec, path):
+    """Pull star information from the ATLAS-RefCat2 catalog via VizieR."""
+
+    print("\nQuerying ATLAS-RefCat2 for reference stars...\n")
+
+    coords = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
+    radius = 10.0 * u.arcmin
+
+    v = Vizier(
+        columns=["RA_ICRS", "DE_ICRS", "gmag", "rmag", "imag", "zmag"],
+        row_limit=10000
+    )
+
+    result = v.query_region(coords, radius=radius, catalog="J/ApJ/867/105/refcat2")
+
+    if len(result) == 0:
+        raise SystemExit("No ATLAS-RefCat2 sources found in this field.")
+
+    star_catalog_df = result[0].to_pandas()
+
+    star_catalog_df = star_catalog_df.rename(
+        columns={
+            "RA_ICRS": "ra",
+            "DE_ICRS": "dec",
+            "gmag": "g",
+            "rmag": "r",
+            "imag": "i",
+            "zmag": "z",
+        }
+    )
+
+    # culling star list to remove bright stars that *may* have oversaturated in our Pan-STARRS OBs
+    PS_magupperlim = 16 # AB mag
+
+    star_catalog_df = star_catalog_df[
+        (star_catalog_df["g"] >= PS_magupperlim)
+        & (star_catalog_df["r"] >= PS_magupperlim)
+        & (star_catalog_df["i"] >= PS_magupperlim)
+        & (star_catalog_df["z"] >= PS_magupperlim)
+    ].reset_index(drop=True)
+
+    # adding in a dummy y-band col to play nice in the code later [y-band data is expected]
+    star_catalog_df["y"] = np.nan
+
+    np.savetxt(path + '/ref_stars.dat', star_catalog_df, fmt='%.8f\t%.8f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f', header='ra\tdec\tg\tr\ti\tz\ty', comments='')
+    print('Success! Reference star file created (from ATLAS-RefCat2): ref_stars.dat\n')
+
+    return 
 
 
 
@@ -239,19 +294,16 @@ if __name__ == '__main__':
     except FileNotFoundError as not_found:
       sys.exit(f'\nPath "{not_found.filename}" invalid! Please make sure your sub-directory exists inside the Bundles directory.\n')
 
-
     # Set up the coordinates
     try:
         coords = np.array([float(i) for i in args.coords])
     except:
         sys.exit('Object coordinates invalid! Please supply via -c RA DEC in degrees.\n')
-    if coords[1] > -30:
-        print(f'Coordinates parsed: RA={coords[0]}, DEC={coords[1]}.\n')
-    else:
-        sys.exit('Object coordinates invalid! Please supply a DEC greater than -30 degrees.\n')
-      
 
-    # Create catalog of Pan-STARRS reference stars using object coordinates
+    print(f'Coordinates parsed: RA={coords[0]}, DEC={coords[1]}.\n')
+    coords = np.array([float(i) for i in args.coords])
+      
+    # Create catalog of reference stars using object coordinates
     # Save catalog in parent (backpath) directory, or the child (currpath) directory if the parent directory is "Bundles"
     currpath = os.getcwd()
     os.chdir('..')
@@ -259,20 +311,19 @@ if __name__ == '__main__':
     os.chdir(currpath)
     backpath_dirname = os.path.basename(backpath)
     currpath_dirname = backpath_dirname + '/' + os.path.basename(currpath)
-    if backpath_dirname != 'Bundles':
-      if not os.path.exists(backpath + '/ref_stars.dat'):
-        PS1catalog(coords[0],coords[1],backpath)
-        refcat = pd.read_csv(backpath + "/ref_stars.dat", sep="\t") 
-      else:
+
+    if not os.path.exists(backpath + '/ref_stars.dat'):
+
+        if coords[1] >= -30:
+            PS1catalog(coords[0],coords[1],backpath)
+            refcat = pd.read_csv(backpath + "/ref_stars.dat", sep="\t") 
+        elif coords[1] < -30:
+            ATLASRefCatcatalog(coords[0],coords[1],backpath)
+            refcat = pd.read_csv(backpath + "/ref_stars.dat", sep="\t") 
+
+    else:
         print(f'\nReference star catalog in dir={backpath_dirname} already exists. If you wish to make a new one, delete the current "ref_stars.dat" file and rerun the command.\n')
         refcat = pd.read_csv(backpath + "/ref_stars.dat", sep="\t")
-    else:
-      if not os.path.exists(currpath + '/ref_stars.dat'):
-        PS1catalog(coords[0],coords[1],currpath)
-        refcat = pd.read_csv(currpath + "/ref_stars.dat", sep="\t") 
-      else:
-        print(f'\nReference star catalog in dir={currpath_dirname} already exists. If you wish to make a new one, delete the current "ref_stars.dat" file and rerun the command.\n')
-        refcat = pd.read_csv(currpath + "/ref_stars.dat", sep="\t")
 
 
     # Split the catalog into the separate filters for ease of use later
