@@ -289,7 +289,7 @@ if __name__ == '__main__':
 
     # Set up the working directory
     try:
-      os.chdir(os.getcwd() + '/Bundles/' + args.directory)
+      os.chdir(os.getcwd() + '/../Bundles/' + args.directory)
       print(f'\nWorking path: {os.getcwd()}/.\n')
     except FileNotFoundError as not_found:
       sys.exit(f'\nPath "{not_found.filename}" invalid! Please make sure your sub-directory exists inside the Bundles directory.\n')
