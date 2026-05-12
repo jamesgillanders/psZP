@@ -1,0 +1,5 @@
+### Metadata 
+
+transient_name: EP250304a
+RA: 208.39452
+Dec: -42.80459
